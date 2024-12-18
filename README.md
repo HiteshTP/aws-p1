@@ -1,31 +1,54 @@
-# AWS Three Tier Web Architecture Workshop
+# =========================================
+# COMMANDS TO RUN IN THE APPLICATION SERVER
+# =========================================
 
-## Description: 
-This workshop is a hands-on walk through of a three-tier web architecture in AWS. We will be manually creating the necessary network, security, app, and database components and configurations in order to run this architecture in an available and scalable manner.
+# ======================================
+# INSTALLING MYSQL IN AMAZON LINUX 2023
+# ======================================
+# (REF: https://dev.to/aws-builders/installing-mysql-on-amazon-linux-2023-1512)
 
-## Audience:
-Although this is an introductory level workshop, it is intended for those who have a technical role. The assumption is that you have at least some foundational aws knowledge around VPC, EC2, RDS, S3, ELB and the AWS Console.  
+#!/bin/bash
+sudo -su ec2-user
+sudo wget https://dev.mysql.com/get/mysql80-community-release-el9-1.noarch.rpm
+sudo dnf install mysql80-community-release-el9-1.noarch.rpm -y
+sudo rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2023
+sudo dnf install mysql-community-client -y
+mysql --version
 
-## Pre-requisites:
-1. An AWS account. If you don’t have an AWS account, follow the instructions [here](https://aws.amazon.com/console/) and
-click on “Create an AWS Account” button in the top right corner to create one.
-1. IDE or text editor of your choice.
+# TO TEST CONNECTION BETWEEN APP-SERVER & DATABASE SERVER
+mysql -h <RDS-Endpoint> -u <username> -p <Hit Enter & provide your password>
 
-## Architecture Overview
-![Architecture Diagram](https://github.com/aws-samples/aws-three-tier-web-architecture-workshop/blob/main/application-code/web-tier/src/assets/3TierArch.png)
+#===============================
+# COPYING CONTENT FROM S3 BUCKET
+#===============================
+cd /home/ec2-user
 
-In this architecture, a public-facing Application Load Balancer forwards client traffic to our web tier EC2 instances. The web tier is running Nginx webservers that are configured to serve a React.js website and redirects our API calls to the application tier’s internal facing load balancer. The internal facing load balancer then forwards that traffic to the application tier, which is written in Node.js. The application tier manipulates data in an Aurora MySQL multi-AZ database and returns it to our web tier. Load balancing, health checks and autoscaling groups are created at each layer to maintain the availability of this architecture.
+# !!! IMP !!!
+# MODIFY BELOW CODE WITH YOUR S3 BUCKET NAME
+sudo aws s3 cp s3://<YOUR-S3-BUCKET-NAME>/application-code/app-tier app-tier --recursive
+cd app-tier
+sudo chown -R ec2-user:ec2-user /home/ec2-user/app-tier
+sudo chmod -R 755 /home/ec2-user/app-tier
 
-## Workshop Instructions:
+#===============================
+# INSTALLING NODEJS
+#===============================
+# (REF: https://docs.aws.amazon.com/sdk-for-javascript/v2/developer-guide/setting-up-node-on-ec2-instance.html)
 
-See [AWS Three Tier Web Architecture](https://catalog.us-east-1.prod.workshops.aws/workshops/85cd2bb2-7f79-4e96-bdee-8078e469752a/en-US)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+source ~/.bashrc
+nvm install 16
+nvm use 16
+npm install -g pm2
+npm install
+npm audit fix
 
-
-## Security
-
-See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
-
-## License
-
-This library is licensed under the MIT-0 License. See the LICENSE file.
-
+#===============================
+# STARTING INDEX.JS FILE
+#===============================
+pm2 start index.js 	#(Start Application with PM2, PM2 is process manager for NodeJS)
+pm2 logs            #(To see logs, run Ctrl+C to exit)
+pm2 startup 			  #(Set PM2 to Start on Boot)
+sudo env PATH=$PATH:/home/ec2-user/.nvm/versions/node/v16.20.2/bin /home/ec2-user/.nvm/versions/node/v16.20.2/lib/node_modules/pm2/bin/pm2 startup systemd -u ec2-user --hp /home/ec2-user
+pm2 save			      #(Save the current configuration)
+curl http://localhost:4000/health #(To do the health check)
